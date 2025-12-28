@@ -1,0 +1,3 @@
+# Place your FaceNet model file here
+# Download facenet.tflite (~23MB) or mobilefacenet.tflite (~4MB)
+# and place it in this directory
