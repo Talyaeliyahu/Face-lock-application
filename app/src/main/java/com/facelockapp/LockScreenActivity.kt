@@ -91,6 +91,8 @@ class LockScreenActivity : ComponentActivity() {
                                 isUnlocked = true
                                 // עצור את הבדיקה התקופתית
                                 stopSafetyCheck()
+                                // העבר את המשימה לרקע כדי לחזור למצב הקודם (מסך בית, אפליקציה אחרת וכו')
+                                moveTaskToBack(true)
                                 // סיים ללא אנימציה
                                 finish()
                                 overridePendingTransition(0, 0)
