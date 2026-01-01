@@ -10,37 +10,26 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
-import android.os.PowerManager
 import android.os.SystemClock
-import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.facelockapp.LockScreenActivity
-import com.facelockapp.data.PreferenceManager
 import com.facelockapp.receiver.ScreenReceiver
 
 class ScreenMonitorService : Service() {
     private var screenReceiver: ScreenReceiver? = null
     private val CHANNEL_ID = "ScreenMonitorChannel"
-    private val handler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(1, createNotification())
         registerScreenReceiver()
-        // בדוק מיד אם המסך כרגע דולק - זה חשוב במיוחד אחרי boot
-        checkScreenStateImmediately()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (screenReceiver == null) {
             registerScreenReceiver()
         }
-        // בדוק שוב את מצב המסך כשהשירות מתחיל (חשוב אחרי boot)
-        checkScreenStateImmediately()
         return START_STICKY
     }
 
@@ -109,48 +98,6 @@ class ScreenMonitorService : Service() {
             .build()
     }
 
-    private fun checkScreenStateImmediately() {
-        try {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            val isScreenOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-                powerManager.isInteractive
-            } else {
-                @Suppress("DEPRECATION")
-                powerManager.isScreenOn
-            }
-            
-            if (isScreenOn) {
-                Log.d("ScreenMonitorService", "Screen is on, checking if lock should be shown...")
-                // בדוק אם הנעילה מופעלת והצג את מסך הנעילה מיד
-                val preferenceManager = PreferenceManager(this)
-                val isLockEnabled = preferenceManager.isLockEnabledSync()
-                
-                if (isLockEnabled) {
-                    Log.d("ScreenMonitorService", "Lock enabled and screen is on, showing lock screen immediately")
-                    handler.postDelayed({
-                        showLockScreen()
-                    }, 100) // עיכוב מינימלי כדי לא לחסום את ה-service startup
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("ScreenMonitorService", "Error checking screen state", e)
-        }
-    }
-    
-    private fun showLockScreen() {
-        try {
-            val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-                )
-            }
-            startActivity(lockIntent)
-        } catch (e: Exception) {
-            Log.e("ScreenMonitorService", "Error showing lock screen", e)
-        }
-    }
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
