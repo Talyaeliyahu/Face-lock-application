@@ -21,6 +21,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -34,17 +35,55 @@ fun PermissionsScreen(onPermissionsGranted: () -> Unit) {
     // State to track the special overlay permission. We need to re-check it manually.
     var hasOverlayPermission by remember { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true) }
 
-    // Re-check overlay permission when the app resumes
+    // Function to check all permissions
+    fun checkAllPermissions(): Boolean {
+        val cameraGranted = cameraPermissionState.status.isGranted
+        val overlayGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+        hasOverlayPermission = overlayGranted
+        return cameraGranted && overlayGranted
+    }
+
+    // Re-check permissions aggressively when the app resumes (after user returns from settings)
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    hasOverlayPermission = Settings.canDrawOverlays(context)
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    // בדוק מיד כשה-app חוזר ל-resume (אחרי שהמשתמש חזר מהגדרות)
+                    // עדכן את מצב ההרשאות
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        hasOverlayPermission = Settings.canDrawOverlays(context)
+                    }
+                    // בדוק אם כל ההרשאות אושרו
+                    if (checkAllPermissions()) {
+                        // אם כל ההרשאות אושרו, המשך אוטומטית
+                        onPermissionsGranted()
+                    }
                 }
+                else -> {}
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // בדיקה תקופתית כשה-app פעיל - לזיהוי מהיר של שינויים בהרשאות
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(500) // בדוק כל חצי שנייה
+            // עדכן את מצב ההרשאות
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                hasOverlayPermission = Settings.canDrawOverlays(context)
+            }
+            // בדוק אם כל ההרשאות אושרו
+            if (checkAllPermissions()) {
+                onPermissionsGranted()
+                break // עצור את הלולאה כשיש כל ההרשאות
+            }
+        }
     }
 
     val allPermissionsGranted = cameraPermissionState.status.isGranted && hasOverlayPermission
@@ -82,7 +121,7 @@ fun PermissionsScreen(onPermissionsGranted: () -> Unit) {
         // Request Overlay permission if camera is granted but overlay is not
         if (cameraPermissionState.status.isGranted && !hasOverlayPermission) {
             PermissionRequestBox(
-                text = "הרשאת הצגה מעל אפליקציות אחרות נדרשת להצגת מסך הנעילה.",
+                text = "הרשאת הצגה מעל אפליקציות אחרות נדרשת להצגת מסך הנעילה.\n\nלאחר האישור, חזור לאפליקציה וההמשך יתבצע אוטומטית.",
                 buttonText = "פתח הגדרות הצגה",
                 onClick = {
                     val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))

@@ -14,9 +14,11 @@ class ScreenReceiver : BroadcastReceiver() {
             // בדוק בצורה מהירה מאוד מ-SharedPreferences (ללא עיכובים)
             val preferenceManager = PreferenceManager(context)
             val isLockEnabled = preferenceManager.isLockEnabledSync()
+            val hasAuthMethod = preferenceManager.hasAnyAuthMethodSync()
             
-            if (isLockEnabled) {
-                Log.d("ScreenReceiver", "Lock enabled, showing lock screen immediately")
+            // הפעל נעילה רק אם המתג דלוק ויש לפחות שיטת אימות אחת
+            if (isLockEnabled && hasAuthMethod) {
+                Log.d("ScreenReceiver", "Lock enabled and auth method exists, showing lock screen immediately")
                 val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
                     addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -30,7 +32,11 @@ class ScreenReceiver : BroadcastReceiver() {
                     Log.e("ScreenReceiver", "Error starting activity", e)
                 }
             } else {
-                Log.d("ScreenReceiver", "Lock disabled, not showing lock screen")
+                if (!isLockEnabled) {
+                    Log.d("ScreenReceiver", "Lock disabled, not showing lock screen")
+                } else {
+                    Log.d("ScreenReceiver", "Lock enabled but no auth method configured, not showing lock screen")
+                }
             }
         }
     }

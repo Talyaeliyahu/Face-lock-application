@@ -38,10 +38,12 @@ class BootReceiver : BroadcastReceiver() {
             
             // בדוק את מצב הנעילה מיד מ-SharedPreferences (מהיר מאוד)
             val isLockEnabled = preferenceManager.isLockEnabledSync()
+            val hasAuthMethod = preferenceManager.hasAnyAuthMethodSync()
             
-            Log.d("BootReceiver", "Lock enabled: $isLockEnabled")
+            Log.d("BootReceiver", "Lock enabled: $isLockEnabled, Has auth method: $hasAuthMethod")
             
-            if (isLockEnabled) {
+            // הפעל נעילה רק אם המתג דלוק ויש לפחות שיטת אימות אחת
+            if (isLockEnabled && hasAuthMethod) {
                 // התחל את השירות מיד ללא עיכוב
                 val serviceIntent = Intent(context, ScreenMonitorService::class.java)
                 try {
@@ -62,7 +64,11 @@ class BootReceiver : BroadcastReceiver() {
                 // הוסף בדיקה נוספת אחרי 1 שנייה כגיבוי (אם השירות לא הספיק לבדוק)
                 scheduleBackupCheck(context, preferenceManager)
             } else {
-                Log.d("BootReceiver", "Lock is disabled, not starting service")
+                if (!isLockEnabled) {
+                    Log.d("BootReceiver", "Lock is disabled, not starting service")
+                } else {
+                    Log.d("BootReceiver", "Lock enabled but no auth method configured, not starting service")
+                }
             }
         }
     }
@@ -77,7 +83,10 @@ class BootReceiver : BroadcastReceiver() {
                 powerManager.isScreenOn
             }
             
-            if (isScreenOn && preferenceManager.isLockEnabledSync()) {
+            val isLockEnabled = preferenceManager.isLockEnabledSync()
+            val hasAuthMethod = preferenceManager.hasAnyAuthMethodSync()
+            
+            if (isScreenOn && isLockEnabled && hasAuthMethod) {
                 Log.d("BootReceiver", "Screen is on after boot, showing lock screen immediately")
                 val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
                     addFlags(

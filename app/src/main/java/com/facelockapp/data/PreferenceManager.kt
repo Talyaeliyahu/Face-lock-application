@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "face_lock_preferences")
 
@@ -95,5 +96,24 @@ class PreferenceManager(context: Context) {
 
     suspend fun removeFaceEmbedding() {
         dataStore.edit { it.remove(KEY_FACE_EMBEDDING) }
+    }
+
+    /**
+     * בודק אם יש לפחות שיטת אימות אחת (פנים, PIN או תבנית) - גרסה sync למהירות
+     * משתמש ב-runBlocking כדי לקרוא מ-DataStore באופן סינכרוני
+     */
+    fun hasAnyAuthMethodSync(): Boolean {
+        return runBlocking {
+            try {
+                val preferences = dataStore.data.first()
+                val hasPin = preferences[KEY_PIN_CODE] != null && preferences[KEY_PIN_CODE]!!.isNotEmpty()
+                val hasPattern = preferences[KEY_PATTERN] != null && preferences[KEY_PATTERN]!!.isNotEmpty()
+                val hasFace = preferences[KEY_FACE_EMBEDDING] != null && preferences[KEY_FACE_EMBEDDING]!!.isNotEmpty()
+                hasPin || hasPattern || hasFace
+            } catch (e: Exception) {
+                // במקרה של שגיאה, נחזיר false כדי לא להפעיל נעילה ללא אימות
+                false
+            }
+        }
     }
 }
